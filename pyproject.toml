@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "aello"
+version = "1.0.0"
+description = "Simple CLI tool for KeePass"
+authors = ["Oscar Cortez <om.cortez.2010@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "^3.7"
+rich = "^12.2.0"
+typer = "^0.4.1"
+pykeepass = "^4.0.1"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+isort = "^5.10.1"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
