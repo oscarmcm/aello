@@ -1,23 +1,41 @@
-import os
-import sys
-from rich.console import RenderableType
+from collections import OrderedDict
 
-from rich.syntax import Syntax
-from rich.traceback import Traceback
-
-from textual.app import App
-from textual.widgets import Header, Footer, Placeholder, TreeNode, TreeControl, TreeClick, ScrollView
-from rich.tree import Tree
+from rich.console import Group, RenderableType
 from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
+from textual.app import App
+from textual.reactive import Reactive
+from textual.widgets import Footer, Placeholder, ScrollView, TreeClick
+from widgets import KeePassTree
 
 
 class KeePassApp(App):
     keepass_tree = None
+    keepass_entries = None
 
     def __init__(self, *args, **kwargs):
         self.keepass_tree = kwargs.get('keepass_tree')
+        self.keepass_entries = kwargs.get('keepass_entries')
         super().__init__()
-        
+
+    def render_body(self, key: str) -> RenderableType:
+        data = self.keepass_entries.get(key)
+        info_table = Table(
+            box=None, padding=2, expand=True, show_header=False, leading=1
+        )
+
+        for key_name, key_value in data.items():
+            if key_name == 'notes':
+                continue
+            info_table.add_row(key_name.title(), key_value)
+
+        self.app.sub_title = data['title']
+        return Group(
+            Panel(info_table, title='Entry'),
+            Panel(Text(data['notes']), title='Notes'),
+        )
+
     async def on_load(self) -> None:
         """
         Sent before going in to application mode.
@@ -32,56 +50,27 @@ class KeePassApp(App):
         """
 
         self.body = ScrollView()
-        
-        def add_nodes(node, node_tree):
-            if node_tree['items']:
-                for tree_item in node_tree['items']:
-                    _, item_name = tree_item
-                    node.add(f'[bold yellow]{item_name}')
-            if node_tree['groups']:
-                for group in node_tree['groups']:
-                    for node_name, tree in group.items():
-                        new_node = Tree(node_name)
-                        node.add(new_node)
-                        add_nodes(new_node, tree)
 
-        root = Tree('Root', hide_root=True)
-        for node_name, tree in self.keepass_tree.items(): 
-            node = root.add(f':file_folder: {node_name}')
-            add_nodes(node, tree)
-                    
+        main_tree = KeePassTree(name='Root', id='', path='')
+        main_tree.set_tree(self.keepass_tree)
 
+        main_tree.loaded = True
+        self.refresh(layout=True)
 
-        # Dock our widgets
-        # await self.view.dock(Header(style='', clock=False), edge='top')
         await self.view.dock(Footer(), edge='bottom')
-
-        # Note the directory is also in a scroll view
         await self.view.dock(
-            ScrollView(root), edge='left', size=48, name='sidebar'
+            ScrollView(main_tree), edge='left', size=48, name='sidebar'
         )
         await self.view.dock(self.body, edge='top')
-        foo = Panel('demo', title='Notes')
-        await self.body.update(foo)
-    
-    async def handle_file_click(self, message: FileClick) -> None:
+
+    async def handle_tree_click(self, message: TreeClick) -> None:
         """
         A message sent by the directory tree when a file is clicked.
         """
+        entry = message.node.data
+        body_content = self.render_body(f'{entry.id}|{entry.path}')
+        await self.body.update(body_content)
 
-        syntax: RenderableType
-        try:
-            # Construct a Syntax object for the path in the message
-            syntax = Syntax.from_path(
-                message.path,
-                line_numbers=True,
-                word_wrap=True,
-                indent_guides=True,
-                theme="monokai",
-            )
-        except Exception:
-            # Possibly a binary file
-            # For demonstration purposes we will show the traceback
-            syntax = Traceback(theme="monokai", width=None, show_locals=True)
-        self.app.sub_title = os.path.basename(message.path)
-        await self.body.update(syntax)
+        if not message.node.empty:
+            await message.node.toggle()
+
