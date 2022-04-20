@@ -1,5 +1,5 @@
 from collections import OrderedDict
-
+import pyperclip
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
@@ -13,6 +13,7 @@ from widgets import KeePassTree
 class KeePassApp(App):
     keepass_tree = None
     keepass_entries = None
+    active_item: dict = {}
 
     def __init__(self, *args, **kwargs):
         self.keepass_tree = kwargs.get('keepass_tree')
@@ -20,29 +21,34 @@ class KeePassApp(App):
         super().__init__()
 
     def render_body(self, key: str) -> RenderableType:
-        data = self.keepass_entries.get(key)
+        self.active_item = self.keepass_entries.get(key)
         info_table = Table(
             box=None, padding=2, expand=True, show_header=False, leading=1
         )
 
-        for key_name, key_value in data.items():
+        for key_name, key_value in self.active_item.items():
             if key_name == 'notes':
                 continue
             info_table.add_row(key_name.title(), key_value)
 
-        self.app.sub_title = data['title']
+        self.app.sub_title = self.active_item['title']
         return Group(
             Panel(info_table, title='Entry'),
-            Panel(Text(data['notes']), title='Notes'),
+            Panel(Text(self.active_item['notes']), title='Notes'),
         )
+    async def action_copy(self, key:str) -> None:
+        pyperclip.copy(self.active_item[key])
 
     async def on_load(self) -> None:
         """
         Sent before going in to application mode.
         """
-        await self.bind('b', 'view.toggle("sidebar")', 'Toggle sidebar')
+        # await self.bind('b', 'view.toggle("sidebar")', 'Toggle sidebar')
         await self.bind('q', 'quit', 'Quit')
         await self.bind('esc', 'quit', 'Quit')
+        await self.bind('p', 'copy("password")', 'Copy Password')
+        await self.bind('u', 'copy("username")', 'Copy Username')
+        await self.bind('l', 'copy("url")', 'Copy URL')
 
     async def on_mount(self) -> None:
         """
@@ -51,7 +57,9 @@ class KeePassApp(App):
 
         self.body = ScrollView()
 
-        main_tree = KeePassTree(name='Root', id='', path='')
+        main_tree = KeePassTree(
+            name='Root', id='', is_group=True, path='', entries=[]
+        )
         main_tree.set_tree(self.keepass_tree)
 
         main_tree.loaded = True
