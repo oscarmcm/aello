@@ -23,20 +23,21 @@ class Entry:
     id: str
     is_group: bool
     path: str
+    entries: list[Entry]
 
 
 class KeePassTree(TreeControl[Entry]):
     tree_data: OrderedDict | None = None
     has_focus: Reactive[bool] = Reactive(False)
 
-    def __init__(self, name: str, id: str, path: str) -> None:
+    def __init__(self, name: str, id: str, is_group: bool, path: str, entries: list[Entry]) -> None:
         """
         Creates a directory tree struction from KeePass groups and entries.
         This class is a copy of textual.widgets.DirectoryTree with ammendments 
         """
-        data = Entry(name=name, id=id, is_group=True, path=path)
+        data = Entry(name=name, id=id, is_group=is_group, path=path, entries=entries)
         super().__init__(label='Root', name=name, data=data)
-        #self.root.tree.guide_style = 'black'
+        self.root.tree.guide_style = 'black'
 
     def set_tree(self, keepass_tree: OrderedDict) -> None:
         self.tree_data = keepass_tree
@@ -110,7 +111,7 @@ class KeePassTree(TreeControl[Entry]):
         else:
             label.stylize('bright_green')
             icon = '📄'
-            label.highlight_regex(r'\..*$', "green")
+            label.highlight_regex(r'\..*$', 'green')
 
 
         if is_cursor and has_focus:
@@ -135,16 +136,18 @@ class KeePassTree(TreeControl[Entry]):
         node_groups = node_tree.get('groups')
 
         if node_entries:
-            for node_entry in node_entries:
+            async for node_entry in node_entries:
                 item_id, item_path, item_name = node_entry
                 entry = Entry(
                     name=item_name,
                     id=item_id,
                     is_group=False,
                     path=item_path,
+                    entries=[],
                 )
-                await node.add(item_name, entry)
-        
+                foo = await node.add(item_name, entry)
+                print(foo)
+        '''
         if node_groups:
             for group in node_groups:
                 for node_name, groups in group.items():
@@ -153,10 +156,9 @@ class KeePassTree(TreeControl[Entry]):
                         id='',
                         is_group=True,
                         path='',
+                        entries=[]
                     )
-                    await node.add(node_name, node_group)
-                    await self.load_tree(node, node_name, groups)
-
+        '''
         node.loaded = True
         await node.expand()
         self.refresh(layout=True)

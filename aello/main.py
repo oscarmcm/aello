@@ -1,6 +1,5 @@
-import configparser
+from configparser import ConfigParser
 import os
-import sys
 from collections import OrderedDict
 from pathlib import Path
 
@@ -11,7 +10,7 @@ from rich.console import Console
 app = typer.Typer()
 console = Console()
 error_console = Console(stderr=True, style='bold red')
-config = configparser.ConfigParser()
+config = ConfigParser()
 
 config_path = os.environ.get(
     'AELLO_CONFIG_PATH', Path.home() / Path('.config/aello/config.ini')
@@ -50,10 +49,7 @@ def main(ctx: typer.Context):
         tree = collect_groups(database.root_group)
         entries = collect_entries(database.entries)
 
-        KeePassApp(title='Aello').run(
+        KeePassApp(title='aello').run(
             keepass_tree=tree, keepass_entries=entries
         )
 
-
-if __name__ == '__main__':
-    app()
