@@ -7,10 +7,10 @@ from rich.text import Text
 from textual.app import App
 from textual.reactive import Reactive
 from textual.widgets import Footer, Placeholder, ScrollView, TreeClick
-from widgets import KeePassTree
+from .widgets import KeePassTree
 
 
-class KeePassApp(App):
+class Main(App):
     keepass_tree = None
     keepass_entries = None
     active_item: dict = {}
@@ -50,6 +50,19 @@ class KeePassApp(App):
         await self.bind('u', 'copy("username")', 'Copy Username')
         await self.bind('l', 'copy("url")', 'Copy URL')
 
+    async def handle_tree_click(self, message: TreeClick) -> None:
+        """
+        A message sent by the directory tree when a file is clicked.
+        """
+        entry = message.node.data
+        body_content = self.render_body(f'{entry.id}|{entry.path}')
+        await self.body.update(body_content)
+
+        if not message.node.empty:
+            await message.node.toggle()
+
+
+class KeePassFull(Main):
     async def on_mount(self) -> None:
         """
         Call after terminal goes in to application mode
@@ -71,14 +84,9 @@ class KeePassApp(App):
         )
         await self.view.dock(self.body, edge='top')
 
-    async def handle_tree_click(self, message: TreeClick) -> None:
-        """
-        A message sent by the directory tree when a file is clicked.
-        """
-        entry = message.node.data
-        body_content = self.render_body(f'{entry.id}|{entry.path}')
-        await self.body.update(body_content)
 
-        if not message.node.empty:
-            await message.node.toggle()
+class KeePassCompact(Main):
+    async def on_mount(self) -> None:
+        self.body = ScrollView()
+        await self.view.dock(self.body, edge='top')
 

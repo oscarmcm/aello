@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [tool.poetry.scripts]
-aello = "src.main:app"
+aello = "aello.main:app"
 
 [tool.poetry.dependencies]
 python = "^3.7"
