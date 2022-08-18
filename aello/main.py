@@ -15,27 +15,10 @@ config_path = os.environ.get(
     'AELLO_CONFIG_PATH', Path.home() / Path('.config/aello/config.ini')
 )
 config = Config.setup(config_path)
-database_path = Path(config.keepass.path)
-if not database_path.exists() and not database_path.is_file():
-    error_console.print('Looks like the database does not exists.')
-    error_console.print('Maybe you misspelled it, please check your config.')
-    error_console.print(f'This is the path used: [underline]{database_path}')
-    raise typer.Exit(code=1)
-
 
 database = PyKeePass(
-    str(database_path), password=config.keepass.password
+    config.keepass.path, password=config.keepass.password
 )
-
-if config.app.mode not in ['compact', 'full']:
-    error_console.print(
-        f'"{config.app.mode}" is not a valid or recognized app mode.'
-    )
-    error_console.print(
-        'Use [underline]"compact" or [underline]"full" mode.'
-    )
-    raise typer.Exit(code=1)
-
 
 if config.app.mode == 'compact':
     from .app import KeePassCompact
