@@ -5,6 +5,7 @@ from pathlib import Path
 import typer
 from pykeepass import PyKeePass
 from rich.console import Console
+
 from .config import Config
 
 app = typer.Typer()
@@ -16,16 +17,16 @@ config_path = os.environ.get(
 )
 config = Config.setup(config_path)
 
-database = PyKeePass(
-    config.keepass.path, password=config.keepass.password
-)
+database = PyKeePass(config.keepass.path, password=config.keepass.password)
 
 if config.app.mode == 'compact':
     from .app import KeePassCompact
+
     App = KeePassCompact
 
 if config.app.mode == 'full':
     from .app import KeePassFull
+
     App = KeePassFull
 
 
@@ -42,12 +43,16 @@ def search(name: str):
     entries = collect_entries(database.entries)
     App(title='aello').run(keepass_tree=tree, keepass_entries=entries)
 
+
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         from .helpers import collect_entries, collect_groups
 
-        tree = collect_groups(database.root_group)
+        # tree = collect_groups(database.root_group)
         entries = collect_entries(database.entries)
-        App(title='aello').run(keepass_tree=tree, keepass_entries=entries)
-
+        App(title='aello').run(
+            sidebar_position=config.app.sidebar_position,
+            keepass_root=database.root_group,
+            keepass_entries=entries,
+        )

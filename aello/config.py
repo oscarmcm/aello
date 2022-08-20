@@ -1,10 +1,10 @@
 from configparser import ConfigParser
 from dataclasses import dataclass
 from pathlib import Path
-from rich.console import Console
-from typer import Exit as TyperExit
 from typing import Literal
 
+from rich.console import Console
+from typer import Exit as TyperExit
 
 Parser = ConfigParser()
 Error = Console(stderr=True, style='bold red')
@@ -27,17 +27,16 @@ class AppConfig:
 
 DefaultConfig = {
     'keepass': {'path': '', 'password': '', 'key': '', 'transformed_key': ''},
-    'app': {
-        'mode': 'full',
-        'show_sidebar': False,
-        'sidebar_position': 'left'
-    }
+    'app': {'mode': 'full', 'show_sidebar': False, 'sidebar_position': 'left'},
 }
 
 
 class Config:
-    keepass: KeePassConfig
-    app: AppConfig
+    def __init__(
+        self, keepass_conf: KeePassConfig, app_config: AppConfig
+    ) -> None:
+        self.keepass = keepass_conf
+        self.app = app_config
 
     @staticmethod
     def valid_path(config_path) -> bool:
@@ -75,11 +74,7 @@ class Config:
             Error.print(
                 f'"{app_conf.mode}" is not a valid or recognized app mode.'
             )
-            Error.print(
-                'Use [underline]"compact" or [underline]"full" mode.'
-            )
+            Error.print('Use [underline]"compact" or [underline]"full" mode.')
             raise TyperExit(code=1)
 
-
         return cls(keepass_conf, app_conf)
-

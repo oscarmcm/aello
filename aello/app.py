@@ -1,42 +1,49 @@
 from collections import OrderedDict
+
 import pyperclip
+from pykeepass.group import Group as KeePassGroup
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import App
-from textual.reactive import Reactive
-from textual.widgets import Footer, Placeholder, ScrollView, TreeClick
+from textual.widgets import Footer, Header, Placeholder, ScrollView, TreeClick
+
 from .widgets import KeePassTree
 
 
 class Main(App):
-    keepass_tree = None
-    keepass_entries = None
-    active_item: dict = {}
+    sidebar_position: str
+    keepass_root_group: KeePassGroup
+    keepass_entries: OrderedDict
+    active_item: dict
 
     def __init__(self, *args, **kwargs):
-        self.keepass_tree = kwargs.get('keepass_tree')
+        self.sidebar_position = kwargs.get('sidebar_position')
+        self.keepass_root = kwargs.get('keepass_root')
         self.keepass_entries = kwargs.get('keepass_entries')
         super().__init__()
 
     def render_body(self, key: str) -> RenderableType:
         self.active_item = self.keepass_entries.get(key)
+
         info_table = Table(
             box=None, padding=2, expand=True, show_header=False, leading=1
         )
 
         for key_name, key_value in self.active_item.items():
-            if key_name == 'notes':
+            if key_name == 'notes' or key_name.startswith('__'):
                 continue
             info_table.add_row(key_name.title(), key_value)
 
-        self.app.sub_title = self.active_item['title']
+        self.app.sub_title = self.active_item['__path']
+
         return Group(
             Panel(info_table, title='Entry'),
             Panel(Text(self.active_item['notes']), title='Notes'),
         )
-    async def action_copy(self, key:str) -> None:
+
+    async def action_copy(self, key: str) -> None:
         pyperclip.copy(self.active_item[key])
 
     async def on_load(self) -> None:
@@ -55,11 +62,12 @@ class Main(App):
         A message sent by the directory tree when a file is clicked.
         """
         entry = message.node.data
-        body_content = self.render_body(f'{entry.id}|{entry.path}')
-        await self.body.update(body_content)
+        if not entry.is_group:
+            body_content = self.render_body(entry.id)
+            await self.body.update(body_content)
 
-        if not message.node.empty:
-            await message.node.toggle()
+        # if not message.node.empty:
+        #    await message.node.toggle()
 
 
 class KeePassFull(Main):
@@ -67,20 +75,29 @@ class KeePassFull(Main):
         """
         Call after terminal goes in to application mode
         """
+        self.app.title = 'aello'
 
         self.body = ScrollView()
 
         main_tree = KeePassTree(
-            name='Root', id='', is_group=True, path='', entries=[]
+            id=str(self.keepass_root.uuid),
+            name=self.keepass_root.name,
+            path='/',
+            is_group=True,
+            keepass_instance=self.keepass_root,
         )
-        main_tree.set_tree(self.keepass_tree)
 
         main_tree.loaded = True
         self.refresh(layout=True)
 
+        await self.view.dock(Header(tall=False, clock=False), edge='top')
         await self.view.dock(Footer(), edge='bottom')
+
         await self.view.dock(
-            ScrollView(main_tree), edge='left', size=48, name='sidebar'
+            ScrollView(main_tree),
+            edge=self.sidebar_position,
+            size=48,
+            name='sidebar',
         )
         await self.view.dock(self.body, edge='top')
 
@@ -89,4 +106,3 @@ class KeePassCompact(Main):
     async def on_mount(self) -> None:
         self.body = ScrollView()
         await self.view.dock(self.body, edge='top')
-

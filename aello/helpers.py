@@ -31,14 +31,14 @@ def collect_entries(entries: list[Entry]) -> OrderedDict:
     """
     result = OrderedDict()
     for entry in entries:
-        result[f'{entry.uuid}|{entry.path}'] = {
-            'title': entry.title,
+        result[str(entry.uuid)] = {
+            'title': entry.title or '',
             'username': entry.username,
             'password': entry.password,
             'URL': entry.url,
             'expires': 'Yes' if entry.expires else 'No',
-            #'expires_on': entry.expires_on,
             'notes': entry.notes or '',
+            '__path': '/'.join('' if p == None else p for p in entry.path),
+            #'expires_on': entry.expires_on,
         }
     return result
-

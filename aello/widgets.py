@@ -1,46 +1,53 @@
 from __future__ import annotations
 
-import rich.repr
+from collections import OrderedDict
+from dataclasses import dataclass
+from functools import lru_cache
+from typing import Literal
 
+import rich.repr
+from pykeepass.entry import Entry
+from pykeepass.group import Group
 from rich.console import RenderableType
 from rich.text import Text
-
-from functools import lru_cache
-
-from dataclasses import dataclass
-from collections import OrderedDict
+from textual.message import Message
 from textual.reactive import Reactive
-from textual.widgets import TreeControl, TreeClick, TreeNode, NodeID
+from textual.widgets import NodeID, TreeClick, TreeControl, TreeNode
 
 
 @dataclass
-class Entry:
-    """
-    Represents the data
-    """
-
-    name: str
+class TreeEntry:
     id: str
-    is_group: bool
+    name: str
     path: str
-    entries: list[Entry]
+    is_group: bool
+    keepass_instance: Literal[Group, Entry]
 
 
-class KeePassTree(TreeControl[Entry]):
-    tree_data: OrderedDict | None = None
+'''
+
+@rich.repr.auto
+class TreeEntryClick(Message, bubble=True):
+    def __init__(self, sender, path: str) -> None:
+        self.node = node
+        super().__init__(sender)
+
+'''
+
+
+class KeePassTree(TreeControl[TreeEntry]):
     has_focus: Reactive[bool] = Reactive(False)
 
-    def __init__(self, name: str, id: str, is_group: bool, path: str, entries: list[Entry]) -> None:
+    def __init__(self, *args, **kwargs) -> None:
         """
         Creates a directory tree struction from KeePass groups and entries.
-        This class is a copy of textual.widgets.DirectoryTree with ammendments 
+        This class is a copy of textual.widgets.DirectoryTree with ammendments
         """
-        data = Entry(name=name, id=id, is_group=is_group, path=path, entries=entries)
-        super().__init__(label='Root', name=name, data=data)
+        instance = TreeEntry(**kwargs)
+        super().__init__(
+            label=instance.name, name=instance.name, data=instance
+        )
         self.root.tree.guide_style = 'black'
-
-    def set_tree(self, keepass_tree: OrderedDict) -> None:
-        self.tree_data = keepass_tree
 
     def on_focus(self) -> None:
         """Sets has_focus to true when the item is clicked."""
@@ -49,16 +56,6 @@ class KeePassTree(TreeControl[Entry]):
     def on_blur(self) -> None:
         """Sets has_focus to false when an item no longer has focus."""
         self.has_focus = False
-
-    async def action_click_label(self, node_id: NodeID) -> None:
-        """
-        Overrides action_click_label from tree control and sets show cursor to True
-        """
-        node = self.nodes[node_id]
-        self.cursor = node.id
-        self.cursor_line = self.find_cursor() or 0
-        self.show_cursor = True
-        await self.post_message(TreeClick(self, node))
 
     async def watch_hover_node(self, hover_node: NodeID) -> None:
         """
@@ -71,7 +68,7 @@ class KeePassTree(TreeControl[Entry]):
 
         self.refresh(layout=True)
 
-    def render_node(self, node: TreeNode[Entry]) -> RenderableType:
+    def render_node(self, node: TreeNode[TreeEntry]) -> RenderableType:
         """
         Renders a node in the tree.
         """
@@ -87,7 +84,7 @@ class KeePassTree(TreeControl[Entry]):
     @lru_cache(maxsize=1024 * 32)
     def render_tree_label(
         self,
-        node: TreeNode[Entry],
+        node: TreeNode[TreeEntry],
         is_group: bool,
         expanded: bool,
         is_cursor: bool,
@@ -113,11 +110,12 @@ class KeePassTree(TreeControl[Entry]):
             icon = '📄'
             label.highlight_regex(r'\..*$', 'green')
 
-
         if is_cursor and has_focus:
             label.stylize('reverse')
 
-        icon_label = Text(f'{icon} ', no_wrap=True, overflow='ellipsis') + label
+        icon_label = (
+            Text(f'{icon} ', no_wrap=True, overflow='ellipsis') + label
+        )
         icon_label.apply_meta(meta)
         return icon_label
 
@@ -125,51 +123,39 @@ class KeePassTree(TreeControl[Entry]):
         """
         Actions that are executed when the widget is mounted.
         """
-        for node_name, node_tree in self.tree_data.items():
-            await self.load_tree(self.root, node_name, node_tree)
+        await self.load_tree(self.root)
 
-    async def load_tree(self, node: TreeNode[Entry], name:str, node_tree):
+    async def load_tree(self, node: TreeNode[TreeEntry]):
         """
         Load entry for a tree node.
         """
-        node_entries = node_tree.get('entries')
-        node_groups = node_tree.get('groups')
+        entries = (
+            node.data.keepass_instance.subgroups
+            + node.data.keepass_instance.entries
+        )
 
-        if node_entries:
-            async for node_entry in node_entries:
-                item_id, item_path, item_name = node_entry
-                entry = Entry(
-                    name=item_name,
-                    id=item_id,
-                    is_group=False,
-                    path=item_path,
-                    entries=[],
-                )
-                foo = await node.add(item_name, entry)
-                print(foo)
-        '''
-        if node_groups:
-            for group in node_groups:
-                for node_name, groups in group.items():
-                    node_group = Entry(
-                        name=node_name,
-                        id='',
-                        is_group=True,
-                        path='',
-                        entries=[]
-                    )
-        '''
+        for item in entries:
+            name = item.name if isinstance(item, Group) else item.title
+            instance = TreeEntry(
+                id=str(item.uuid),
+                name=name or '--',
+                path='/'.join('' if p == None else p for p in item.path),
+                is_group=isinstance(item, Group),
+                keepass_instance=item,
+            )
+            await node.add(name or '--', instance)
+
         node.loaded = True
         await node.expand()
         self.refresh(layout=True)
 
-    async def handle_tree_click(self, message: TreeClick[Entry]) -> None:
+    async def handle_tree_click(self, message: TreeClick[TreeEntry]) -> None:
         """
         Handle messages that are sent when a tree item is clicked.
         """
-        node_data = message.node.data
+        entry = message.node.data
 
-        if not node_data.is_group:
+        if not entry.is_group:
             await self.emit(TreeClick(self, message.node))
         else:
             if not message.node.loaded:
