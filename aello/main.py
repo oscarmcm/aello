@@ -19,10 +19,12 @@ config = Config.setup(config_path)
 
 database = PyKeePass(config.keepass.path, password=config.keepass.password)
 
+"""
 if config.app.mode == 'compact':
     from .app import KeePassCompact
 
     App = KeePassCompact
+"""
 
 if config.app.mode == 'full':
     from .app import KeePassFull
@@ -30,6 +32,7 @@ if config.app.mode == 'full':
     App = KeePassFull
 
 
+"""
 @app.command()
 def search(name: str):
     from .helpers import collect_entries, collect_groups
@@ -42,6 +45,7 @@ def search(name: str):
     tree = collect_groups(database.root_group)
     entries = collect_entries(database.entries)
     App(title='aello').run(keepass_tree=tree, keepass_entries=entries)
+"""
 
 
 @app.callback(invoke_without_command=True)

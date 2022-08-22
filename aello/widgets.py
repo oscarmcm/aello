@@ -1,17 +1,19 @@
 from __future__ import annotations
 
-from collections import OrderedDict
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
 
-import rich.repr
 from pykeepass.entry import Entry
 from pykeepass.group import Group
 from rich.console import RenderableType
+from rich.repr import Result, rich_repr
+from rich.style import Style
+from rich.table import Table
 from rich.text import Text
-from textual.message import Message
-from textual.reactive import Reactive
+from textual.events import Leave, MouseMove
+from textual.reactive import Reactive, watch
+from textual.widget import Widget
 from textual.widgets import NodeID, TreeClick, TreeControl, TreeNode
 
 
@@ -22,17 +24,6 @@ class TreeEntry:
     path: str
     is_group: bool
     keepass_instance: Literal[Group, Entry]
-
-
-'''
-
-@rich.repr.auto
-class TreeEntryClick(Message, bubble=True):
-    def __init__(self, sender, path: str) -> None:
-        self.node = node
-        super().__init__(sender)
-
-'''
 
 
 class KeePassTree(TreeControl[TreeEntry]):
@@ -163,3 +154,106 @@ class KeePassTree(TreeControl[TreeEntry]):
                 await message.node.expand()
             else:
                 await message.node.toggle()
+
+
+class KeePassHeader(Widget):
+    highlight_key: Reactive[str | None] = Reactive(None)
+
+    def __init__(self) -> None:
+        self.keys: list[tuple[str, str]] = []
+        super().__init__()
+        self.layout_size = 1
+        self._key_text: Text | None = None
+
+    async def watch_highlight_key(self, value) -> None:
+        """If highlight key changes we need to regenerate the text."""
+        self._key_text = None
+
+    async def on_mouse_move(self, event: MouseMove) -> None:
+        """Store any key we are moving over."""
+        self.highlight_key = event.style.meta.get('key')
+
+    async def on_leave(self, event: events.Leave) -> None:
+        """Clear any highlight when the mouse leave the widget"""
+        self.highlight_key = None
+
+    def __rich_repr__(self) -> Result:
+        yield 'keys', self.keys
+
+    def make_key_text(self) -> Text:
+        """
+        Create text containing all the keys.
+        """
+
+        text = Text(
+            style='white on default',
+            no_wrap=True,
+            overflow='ellipsis',
+            justify='left',
+            end='',
+        )
+        for binding in self.app.bindings.shown_keys:
+            key_display = (
+                binding.key.upper()
+                if binding.key_display is None
+                else binding.key_display
+            )
+            hovered = self.highlight_key == binding.key
+            key_text = Text.assemble(
+                (
+                    f' {key_display} ',
+                    'reverse' if hovered else 'default on default',
+                ),
+                f' {binding.description} ',
+                meta={
+                    '@click': f'app.press("{binding.key}")',
+                    'key': binding.key,
+                },
+            )
+            text.append_text(key_text)
+        return text
+
+    def render(self) -> RenderableType:
+        if self._key_text is None:
+            self._key_text = self.make_key_text()
+        return self._key_text
+
+
+class KeePassFooter(Widget):
+    style = 'default on default'
+    title: Reactive[str] = Reactive('')
+    sub_title: Reactive[str] = Reactive('')
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+        self.layout_size = 1
+
+    @property
+    def full_title(self) -> str:
+        return (
+            f'{self.title} - {self.sub_title}'
+            if self.sub_title
+            else self.title
+        )
+
+    def __rich_repr__(self) -> Result:
+        yield self.title
+
+    def render(self) -> RenderableType:
+        header_table = Table.grid(padding=(0, 1), expand=True)
+        header_table.style = self.style
+        header_table.add_column('title', justify='left', ratio=0)
+        header_table.add_row(self.full_title)
+        return header_table
+
+    async def on_mount(self) -> None:
+        self.set_interval(1.0, callback=self.refresh)
+
+        async def set_title(title: str) -> None:
+            self.title = title
+
+        async def set_sub_title(sub_title: str) -> None:
+            self.sub_title = sub_title
+
+        watch(self.app, 'title', set_title)
+        watch(self.app, 'sub_title', set_sub_title)

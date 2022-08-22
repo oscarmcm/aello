@@ -7,9 +7,9 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import App
-from textual.widgets import Footer, Header, Placeholder, ScrollView, TreeClick
+from textual.widgets import Placeholder, ScrollView, TreeClick
 
-from .widgets import KeePassTree
+from .widgets import KeePassFooter, KeePassHeader, KeePassTree
 
 
 class Main(App):
@@ -37,11 +37,12 @@ class Main(App):
             info_table.add_row(key_name.title(), key_value)
 
         self.app.sub_title = self.active_item['__path']
-
-        return Group(
-            Panel(info_table, title='Entry'),
-            Panel(Text(self.active_item['notes']), title='Notes'),
-        )
+        body = Group(Panel(info_table, title='Entry'))
+        if self.active_item['notes']:
+            body.renderables.append(
+                Panel(Text(self.active_item['notes']), title='Notes'),
+            )
+        return body
 
     async def action_copy(self, key: str) -> None:
         pyperclip.copy(self.active_item[key])
@@ -90,8 +91,8 @@ class KeePassFull(Main):
         main_tree.loaded = True
         self.refresh(layout=True)
 
-        await self.view.dock(Header(tall=False, clock=False), edge='top')
-        await self.view.dock(Footer(), edge='bottom')
+        await self.view.dock(KeePassHeader(), edge='top')
+        await self.view.dock(KeePassFooter(), edge='bottom')
 
         await self.view.dock(
             ScrollView(main_tree),
@@ -100,6 +101,7 @@ class KeePassFull(Main):
             name='sidebar',
         )
         await self.view.dock(self.body, edge='top')
+        #await self.view.dock_grid(z=1, size=2, gap=(2, 5), gutter=(3,3))
 
 
 class KeePassCompact(Main):

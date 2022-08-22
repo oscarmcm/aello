@@ -27,7 +27,7 @@ class AppConfig:
 
 DefaultConfig = {
     'keepass': {'path': '', 'password': '', 'key': '', 'transformed_key': ''},
-    'app': {'mode': 'full', 'show_sidebar': False, 'sidebar_position': 'left'},
+    'app': {'mode': 'full', 'show_sidebar': True, 'sidebar_position': 'left'},
 }
 
 
