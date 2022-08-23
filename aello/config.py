@@ -1,5 +1,5 @@
 from configparser import ConfigParser
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -14,8 +14,17 @@ Error = Console(stderr=True, style='bold red')
 class KeePassConfig:
     path: str
     password: str
-    key: str = ''
-    transformed_key: str = ''
+    keyfile: str | None = None
+    transformed_key: str | None = None
+
+    def to_dict(self) -> dict:
+        data = dict()
+        for key_name, key_value in asdict(self).items():
+            if key_value in [None, '']:
+                continue
+            data[key_name] = key_value
+        data['filename'] = data.pop('path')
+        return data
 
 
 @dataclass
@@ -26,7 +35,12 @@ class AppConfig:
 
 
 DefaultConfig = {
-    'keepass': {'path': '', 'password': '', 'key': '', 'transformed_key': ''},
+    'keepass': {
+        'path': '',
+        'password': '',
+        'keyfile': '',
+        'transformed_key': '',
+    },
     'app': {'mode': 'full', 'show_sidebar': True, 'sidebar_position': 'left'},
 }
 

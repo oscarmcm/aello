@@ -12,12 +12,13 @@ app = typer.Typer()
 console = Console()
 error_console = Console(stderr=True, style='bold red')
 
-config_path = os.environ.get(
-    'AELLO_CONFIG_PATH', Path.home() / Path('.config/aello/config.ini')
-)
-config = Config.setup(config_path)
 
-database = PyKeePass(config.keepass.path, password=config.keepass.password)
+config = Config.setup(
+    os.environ.get(
+        'AELLO_CONFIG_PATH', Path.home() / Path('.config/aello/config.ini')
+    )
+)
+
 
 """
 if config.app.mode == 'compact':
@@ -53,6 +54,7 @@ def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
         from .helpers import collect_entries
 
+        database = PyKeePass(**config.keepass.to_dict())
         entries = collect_entries(database.entries)
         App(title='aello').run(
             sidebar_position=config.app.sidebar_position,
