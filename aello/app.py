@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from enum import Enum
 
 import pyperclip
 from pykeepass.group import Group as KeePassGroup
@@ -7,9 +8,15 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 from textual.app import App
-from textual.widgets import Placeholder, ScrollView, TreeClick
+from textual.widgets import ScrollView, TreeClick
 
-from .widgets import KeePassFooter, KeePassHeader, KeePassTree
+from .widgets import KeePassFooter, KeePassHeader, KeePassTree, Notification
+
+
+class NotificationType(Enum):
+    Error = {'border': 'red', 'background': 'default on red'}
+    Success = {'border': 'green', 'background': 'black on green'}
+    Warning = {'border': 'yellow', 'background': 'black on yellow'}
 
 
 class Main(App):
@@ -24,6 +31,11 @@ class Main(App):
         self.keepass_entries = kwargs.get('keepass_entries')
         super().__init__()
 
+    async def fire_notification(self, message: str, mode: NotificationType):
+        await self.view.dock(
+            Notification(message, mode), z=1, edge='top', size=3
+        )
+
     def render_body(self, key: str) -> RenderableType:
         self.active_item = self.keepass_entries.get(key)
 
@@ -37,15 +49,27 @@ class Main(App):
             info_table.add_row(key_name.title(), key_value)
 
         self.app.sub_title = self.active_item['__path']
-        body = Group(Panel(info_table, title='Entry'))
+        body = Group(Panel(info_table, title='Entry', title_align='left'))
         if self.active_item['notes']:
             body.renderables.append(
-                Panel(Text(self.active_item['notes']), title='Notes'),
+                Panel(
+                    Text(self.active_item['notes']),
+                    title='Notes',
+                    title_align='left',
+                ),
             )
         return body
 
     async def action_copy(self, key: str) -> None:
-        pyperclip.copy(self.active_item[key])
+        try:
+            pyperclip.copy(self.active_item[key])
+            await self.fire_notification(
+                f'Successfully copied {key}!', NotificationType.Success
+            )
+        except:
+            await self.fire_notification(
+                f'Unable to copy {key} from entry!', NotificationType.Error
+            )
 
     async def on_load(self) -> None:
         """
@@ -101,7 +125,6 @@ class KeePassFull(Main):
             name='sidebar',
         )
         await self.view.dock(self.body, edge='top')
-        #await self.view.dock_grid(z=1, size=2, gap=(2, 5), gutter=(3,3))
 
 
 class KeePassCompact(Main):

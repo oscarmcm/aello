@@ -6,15 +6,41 @@ from typing import Literal
 
 from pykeepass.entry import Entry
 from pykeepass.group import Group
+from rich.box import Box
 from rich.console import RenderableType
+from rich.panel import Panel
 from rich.repr import Result, rich_repr
-from rich.style import Style
-from rich.table import Table
 from rich.text import Text
-from textual.events import Leave, MouseMove
+from textual.events import Blur, Enter, Focus, Leave, MouseMove
 from textual.reactive import Reactive, watch
 from textual.widget import Widget
 from textual.widgets import NodeID, TreeClick, TreeControl, TreeNode
+
+ONLY_TOP: Box = Box(
+    """\
+ ── 
+    
+ ── 
+    
+ ── 
+ ── 
+    
+    
+"""
+)
+
+ONLY_BOTTOM: Box = Box(
+    """\
+    
+    
+ ── 
+    
+ ── 
+ ── 
+    
+ ── 
+"""
+)
 
 
 @dataclass
@@ -162,7 +188,7 @@ class KeePassHeader(Widget):
     def __init__(self) -> None:
         self.keys: list[tuple[str, str]] = []
         super().__init__()
-        self.layout_size = 1
+        self.layout_size = 3
         self._key_text: Text | None = None
 
     async def watch_highlight_key(self, value) -> None:
@@ -194,9 +220,9 @@ class KeePassHeader(Widget):
         )
         for binding in self.app.bindings.shown_keys:
             key_display = (
-                binding.key.upper()
+                binding.key
                 if binding.key_display is None
-                else binding.key_display
+                else binding.key_display.upper()
             )
             hovered = self.highlight_key == binding.key
             key_text = Text.assemble(
@@ -211,7 +237,7 @@ class KeePassHeader(Widget):
                 },
             )
             text.append_text(key_text)
-        return text
+        return Panel(text, box=ONLY_BOTTOM)
 
     def render(self) -> RenderableType:
         if self._key_text is None:
@@ -220,13 +246,12 @@ class KeePassHeader(Widget):
 
 
 class KeePassFooter(Widget):
-    style = 'default on default'
     title: Reactive[str] = Reactive('')
     sub_title: Reactive[str] = Reactive('')
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__()
-        self.layout_size = 1
+        self.layout_size = 3
 
     @property
     def full_title(self) -> str:
@@ -240,11 +265,9 @@ class KeePassFooter(Widget):
         yield self.title
 
     def render(self) -> RenderableType:
-        header_table = Table.grid(padding=(0, 1), expand=True)
-        header_table.style = self.style
-        header_table.add_column('title', justify='left', ratio=0)
-        header_table.add_row(self.full_title)
-        return header_table
+        return Panel(
+            Text(self.full_title, style='default on default'), box=ONLY_TOP
+        )
 
     async def on_mount(self) -> None:
         self.set_interval(1.0, callback=self.refresh)
@@ -257,3 +280,39 @@ class KeePassFooter(Widget):
 
         watch(self.app, 'title', set_title)
         watch(self.app, 'sub_title', set_sub_title)
+
+
+class Notification(Widget):
+    counter = 0
+    can_focus = False
+
+    def __init__(self, message: str, mode, *, name: str | None = None) -> None:
+        super().__init__(name=name)
+        self.message = message
+        self.mode = mode.value
+
+    def __rich_repr__(self) -> Result:
+        yield 'name', self.name
+        yield 'message', self.message
+
+    def render(self) -> RenderableType:
+        return Panel(
+            Text(self.message, style=self.mode.get('background')),
+            border_style=self.mode.get('border'),
+            style=self.mode.get('background'),
+            height=3,
+            width=len(self.message) + 5,
+            highlight=True,
+            expand=False,
+        )
+
+    async def destroy(self):
+        self.counter += 1
+        if self.counter == 5:
+            self.visible = False
+            self._child_tasks.clear()
+            self.app.view.layout.docks.pop()
+            self.refresh(layout=True)
+
+    async def on_mount(self) -> None:
+        self.set_interval(1.0, callback=self.destroy)

@@ -51,9 +51,8 @@ def search(name: str):
 @app.callback(invoke_without_command=True)
 def main(ctx: typer.Context):
     if ctx.invoked_subcommand is None:
-        from .helpers import collect_entries, collect_groups
+        from .helpers import collect_entries
 
-        # tree = collect_groups(database.root_group)
         entries = collect_entries(database.entries)
         App(title='aello').run(
             sidebar_position=config.app.sidebar_position,
