@@ -1,2 +1,3 @@
-# django-aello
-Minimalist Django-Admin theme
+# aello
+
+TUI client for KeePassXC Databases
